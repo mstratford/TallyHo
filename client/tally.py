@@ -10,6 +10,8 @@ import machine
 import time
 import errno
 
+CPU_FREQ_HZ = 160000000  # 160Mhz. Valid options 80, 160
+
 # display settings
 _WIDTH = const(240)
 _HEIGHT = const(240)
@@ -22,7 +24,7 @@ _SCK = const(6)
 _HOST = const(1)  # SPI2
 
 _LCD_CS = const(10)
-_LCD_FREQ = const(80000000)  # const(80000000)
+_LCD_FREQ = const(80000000)
 
 _LCD_BYTE_ORDER_RGB = const(0x00)
 _LCD_BYTE_ORDER_BGR = const(0x08)
@@ -131,6 +133,16 @@ fullScreen = fullScreenMessage()
 ###
 # SETUP ROUTINES
 ###
+
+
+def setup_board():
+    print("Setup_board")
+    print(f"Setting CPU Freq to {CPU_FREQ_HZ/1000000}MHz")
+    print(f"Currently {machine.freq()/1000000}")
+    machine.freq(CPU_FREQ_HZ)
+    if machine.freq() != 160000000:
+        print(f"Failed to set CPU speed to {CPU_FREQ_HZ}Hz, currently {machine.freq()}")
+
 
 display: display_driver_framework.DisplayDriver
 
@@ -314,6 +326,7 @@ def setup():
 
     """
     print("Setup")
+    setup_board()
     setup_display()
     setup_task_handler()
     setup_scrn_main()
