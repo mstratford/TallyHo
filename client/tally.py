@@ -40,7 +40,9 @@ COLOR_LIVE = 0xFF0000
 COLOR_PREV = COLOR_OK
 COLOR_STDBY = 0x222222
 
-CAMERA_NUMBER = 1
+CAMERA_NUMBER: int = 1
+CAM_LIVE: int = 0
+CAM_PREV: int = 0
 # LVGL display engine
 import lvgl as lv
 
@@ -256,7 +258,7 @@ def main():
     btn_new = lv.button(scrn)
     btn_new.align(lv.ALIGN.CENTER, 0, 0)
     label = lv.label(btn_new)
-    label.set_text("Loading...")
+    # label.set_text("Loading...")
 
     style_def = lv.style_t()
     style_def.init()
@@ -294,6 +296,7 @@ def main():
 
     # Now to the main show, connect to a local socket server which sends demo camera numbers, update the display and arc
     import socket
+    import json
 
     addr_info = socket.getaddrinfo("192.168.2.6", 8000)
 
@@ -302,36 +305,59 @@ def main():
     s = None
     reconnect = True
     while True:
-        setup_network()
+        # setup_network()
         try:
             if reconnect:
                 if s:
                     del s
                 s = socket.socket()
                 s.connect(addr)
-                s.setblocking(False)
+                s.setblocking(True)
+                s.settimeout(0.2)
                 reconnect = False
                 fullScreen.display(None)
-            data = s.recv(1)
-            value = int(data)
-            print(f"Got {value}")
+            message_buffer = b""
+            try:
+                data = s.readline()
+                if not data or data == b"":
+                    continue
+                message_buffer = data
+            except:
+                continue
 
-            if value == CAMERA_NUMBER:
-                style_arc_live.set_arc_color(lv.color_hex(COLOR_LIVE))
-            else:
-                style_arc_live.set_arc_color(lv.color_hex(COLOR_PREV))
+            print("*")
+            # Parses the response into a JSON
+            message: dict
+            try:
+                print(message_buffer)
+                message = json.loads(message_buffer.decode())
+            except:
+                print(f"Invalid JSON recived from server: {message_buffer.decode()}")
 
-            arc_value = 0
-            # Basic demo of Preview and Program
-            if value == CAMERA_NUMBER:
-                arc_value = 100
-            elif value == 2:
-                # Make a nice cut out for preview
-                arc_value = 80
-            arc.remove_style(style_arc_live, lv.PART.INDICATOR)
-            arc.add_style(style_arc_live, lv.PART.INDICATOR)
-            arc.set_value(arc_value)
-            label.set_text(f"Camera {value}")
+            changed = False
+            if "CAM_LIVE" in message and isinstance(message["CAM_LIVE"], int):
+                CAM_LIVE = int(message["CAM_LIVE"])
+                print(f"LIVE CAM: {CAM_LIVE}")
+                changed = True
+            if "CAM_PREV" in message:
+                CAM_PREV = int(message["CAM_PREV"])
+                print(f"LIVE CAM: {CAM_PREV}")
+                changed = True
+            if changed:
+
+                arc_value = 0
+                if CAM_LIVE == CAMERA_NUMBER:
+                    style_arc_live.set_arc_color(lv.color_hex(COLOR_LIVE))
+                    arc_value = 100
+                elif CAM_PREV == CAMERA_NUMBER:
+                    style_arc_live.set_arc_color(lv.color_hex(COLOR_PREV))
+                    # Make a nice cut out for preview
+                    arc_value = 80
+
+                arc.remove_style(style_arc_live, lv.PART.INDICATOR)
+                arc.add_style(style_arc_live, lv.PART.INDICATOR)
+                arc.set_value(arc_value)
+                label.set_text(f"Camera {CAM_LIVE}")
         except ValueError:
             # TODO: This becomes b'' on socket failure, doesn't otherwise except.
             print(data)

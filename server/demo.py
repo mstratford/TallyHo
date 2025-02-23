@@ -3,6 +3,7 @@
 TallyHo Server for serving the TallyHo client with camera updates from a switcher
 """
 import socket
+import json
 
 HOST = ""  # Everywhere
 PORT = 8000  # Port to listen on (non-privileged ports are > 1023)
@@ -18,8 +19,13 @@ while True:
                 while True:
                     print(f"Connected by {addr}")
                     for i in range(4):
-
-                        conn.sendall(str(i).encode())
+                        message = {
+                            "MAC": None,  # Send to all
+                            "CAM_LIVE": i,
+                            "CAM_PREV": i + 1,
+                        }
+                        print(f"Sending {message}")
+                        conn.sendall(f"{json.dumps(message)}\n".encode())
                         sleep(1)
             except:
                 pass
