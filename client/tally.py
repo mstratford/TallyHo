@@ -63,6 +63,14 @@ def get_mac():
     return sta_if.config("mac")
 
 
+def get_ip():
+    return sta_if.ipconfig("addr4")[0]
+
+
+def get_subnet_mask():
+    return sta_if.ipconfig("addr4")[1]
+
+
 class fullScreenMessage:
     """
     Display class for displaying a full screen message with icon
@@ -87,8 +95,7 @@ class fullScreenMessage:
         @param clear_screen: Screen to load on clearing a message screen. Defaults to the main scrn
         """
         if not msg:
-            if not clear_screen:
-                lv.screen_load(clear_screen if clear_screen else scrn)
+            lv.screen_load(clear_screen if clear_screen else scrn)
             if self.scrn_full:
                 del self.scrn_full
                 self.scrn_err = None
@@ -449,6 +456,15 @@ def main():
                     arc.remove_style(style_arc_live, lv.PART.INDICATOR)
                     arc.add_style(style_arc_live, lv.PART.INDICATOR)
                     arc.set_value(arc_value)
+                if "IDENTIFY" in message:
+                    for i in range(4):
+                        fullScreen.display(
+                            f"IDENTIFY\n{mac_2_str(get_mac())}\n{get_ip()}",
+                            lv.SYMBOL.GPS,
+                            COLOR_OK if i % 2 else COLOR_STDBY,
+                        )
+                        sleep(1)
+                    fullScreen.display(None)
 
             else:
                 setup_tally_camera()

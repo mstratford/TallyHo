@@ -24,16 +24,23 @@ def on_new_client(conn, addr):
             }
             send_message(conn, message)
             sleep(1)
-            message = {
-                "MAC": "F0:F5:BD:DF:3E:F8",  # Round Touch screen one
-                "SET_CAM": 2,
-            }
-            send_message(conn, message)
-            message = {
-                "MAC": "A0:85:E3:47:F5:30",  # Round one
-                "SET_CAM": 3,
-            }
-            send_message(conn, message)
+        message = {
+            "MAC": "F0:F5:BD:DF:3E:F8",  # Round Touch screen one
+            "SET_CAM": 2,
+        }
+        send_message(conn, message)
+        message = {
+            "MAC": "A0:85:E3:47:F5:30",  # Round one
+            "SET_CAM": 3,
+        }
+        send_message(conn, message)
+        sleep(1)
+        message = {
+            "MAC": "A0:85:E3:47:F5:30",  # Round one
+            "IDENTIFY": True,
+        }
+        send_message(conn, message)
+        sleep(1)
     conn.close()
 
 
