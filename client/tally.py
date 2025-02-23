@@ -40,14 +40,27 @@ COLOR_LIVE = 0xFF0000
 COLOR_PREV = COLOR_OK
 COLOR_STDBY = 0x222222
 
-CAMERA_NUMBER: int = 1
+CAMERA_NUMBER: int = -1
 CAM_LIVE: int = 0
 CAM_PREV: int = 0
+
+MAX_CAMERAS = 99
+
 # LVGL display engine
 import lvgl as lv
 
 # The main lvgl Tally Screen
 scrn: lv.obj = None
+
+
+def mac_2_str(mac, end_bytes=0):
+    if end_bytes > 0:
+        mac = mac[len(mac) - end_bytes :]
+    return ":".join([f"{b:02X}" for b in mac]).upper()
+
+
+def get_mac():
+    return sta_if.config("mac")
 
 
 class fullScreenMessage:
@@ -188,12 +201,73 @@ def setup_network():
             pass
 
         print("network config:", sta_if.ipconfig("addr4"))
+        print(f"MAC ADDR: {mac_2_str(get_mac())}")
         fullScreen.display(
             f"WIFI Connected!\n{sta_if.ipconfig('addr4')[0]}", lv.SYMBOL.WIFI, COLOR_OK
         )
         sleep(2)
         fullScreen.display(None)
     return True
+
+
+def _new_tally_cam():
+    print("Setting Cam 1")
+    fullScreen.display("Setting Cam 1", icon=lv.SYMBOL.PLUS, color=COLOR_OK)
+    set_tally_camera(1)
+    sleep(2)
+    return 1
+
+
+def setup_tally_camera():
+    try:
+        # The username and password can be persisted to the ESP32 flash
+        # Place SSID and (plain text) pass comma separated into 'wifi.txt'
+        # REPL example:
+        #  with open("wifi.txt", "w") as file:
+        #     file.write("SSID_NAME,PassW0rd#")
+        details = open("tally_cam.txt", "r").read()
+        print("Read tally cam: ", details)
+
+        if not details:
+            return _new_tally_cam()
+        cam_number = int(details)
+
+        if cam_number < 1 or cam_number > MAX_CAMERAS:
+            raise ValueError("Cam number out of range")
+        global CAMERA_NUMBER
+        CAMERA_NUMBER = cam_number
+    except OSError as e:
+        return _new_tally_cam()
+    except ValueError as e:
+        print(e)
+        print("Invalid Cam Number")
+        fullScreen.display("Invalid Cam Number")
+        sleep(2)
+        return
+
+
+def set_tally_camera(num: int):
+    """
+    Setup the WiFi connection and display status to the display.
+    """
+    print(f"Set tally camera: {num}")
+    if num < 1 or num > MAX_CAMERAS:
+        print(f"Invalid camera number set! {num}")
+        return
+
+    try:
+        # The username and password can be persisted to the ESP32 flash
+        # Place SSID and (plain text) pass comma separated into 'wifi.txt'
+        # REPL example:
+        #  with open("wifi.txt", "w") as file:
+        #     file.write("SSID_NAME,PassW0rd#")
+        open("tally_cam.txt", "w").write(str(num))
+        global CAMERA_NUMBER
+        CAMERA_NUMBER = num
+    except OSError as e:
+        print(e)
+        fullScreen.display("Failed to write cam number!")
+        return
 
 
 import task_handler
@@ -237,6 +311,7 @@ def setup():
     if not setup_network():
         sleep(20)
         machine.reset()
+    setup_tally_camera()
 
 
 def main():
@@ -254,11 +329,11 @@ def main():
         elif code == lv.EVENT.VALUE_CHANGED:
             print("Value changed seen")
 
-    # Display a demo label in the centre of the screen
+    # Display Camera Number label in the top centre of the screen
     btn_new = lv.button(scrn)
-    btn_new.align(lv.ALIGN.CENTER, 0, 0)
+    btn_new.align(lv.ALIGN.TOP_MID, 0, 20)
     label = lv.label(btn_new)
-    # label.set_text("Loading...")
+    label.set_text("?")
 
     style_def = lv.style_t()
     style_def.init()
@@ -294,6 +369,11 @@ def main():
     arc.add_style(style_arc_live, lv.PART.INDICATOR)
     arc.add_style(style_arc_stdby, lv.PART.MAIN)
 
+    # Show mac addr at bottom of the screen
+    label_id = lv.label(scrn)
+    label_id.align(lv.ALIGN.BOTTOM_MID, 0, -20)
+    label_id.set_text(mac_2_str(get_mac(), end_bytes=2))
+
     # Now to the main show, connect to a local socket server which sends demo camera numbers, update the display and arc
     import socket
     import json
@@ -322,6 +402,8 @@ def main():
                 if not data or data == b"":
                     continue
                 message_buffer = data
+            except KeyboardInterrupt as e:
+                raise e
             except:
                 continue
 
@@ -334,30 +416,44 @@ def main():
             except:
                 print(f"Invalid JSON recived from server: {message_buffer.decode()}")
 
-            changed = False
-            if "CAM_LIVE" in message and isinstance(message["CAM_LIVE"], int):
-                CAM_LIVE = int(message["CAM_LIVE"])
-                print(f"LIVE CAM: {CAM_LIVE}")
-                changed = True
-            if "CAM_PREV" in message:
-                CAM_PREV = int(message["CAM_PREV"])
-                print(f"LIVE CAM: {CAM_PREV}")
-                changed = True
-            if changed:
+            if (
+                "MAC" in message
+                and isinstance(message["MAC"], str)
+                and message["MAC"].upper() != mac_2_str(get_mac())
+            ):
+                print("Ignoring command for other MAC addr")
+                continue
+            if CAMERA_NUMBER > 0:
+                label.set_text(str(CAMERA_NUMBER))
+                changed = False
+                if "CAM_LIVE" in message and isinstance(message["CAM_LIVE"], int):
+                    CAM_LIVE = int(message["CAM_LIVE"])
+                    print(f"LIVE CAM: {CAM_LIVE}")
+                    changed = True
+                if "CAM_PREV" in message:
+                    CAM_PREV = int(message["CAM_PREV"])
+                    print(f"LIVE CAM: {CAM_PREV}")
+                    changed = True
+                if changed:
 
-                arc_value = 0
-                if CAM_LIVE == CAMERA_NUMBER:
-                    style_arc_live.set_arc_color(lv.color_hex(COLOR_LIVE))
-                    arc_value = 100
-                elif CAM_PREV == CAMERA_NUMBER:
-                    style_arc_live.set_arc_color(lv.color_hex(COLOR_PREV))
-                    # Make a nice cut out for preview
-                    arc_value = 80
+                    arc_value = 0
+                    if CAM_LIVE == CAMERA_NUMBER:
+                        style_arc_live.set_arc_color(lv.color_hex(COLOR_LIVE))
+                        arc_value = 100
+                    elif CAM_PREV == CAMERA_NUMBER:
+                        style_arc_live.set_arc_color(lv.color_hex(COLOR_PREV))
+                        # Make a nice cut out for preview
+                        arc_value = 80
 
-                arc.remove_style(style_arc_live, lv.PART.INDICATOR)
-                arc.add_style(style_arc_live, lv.PART.INDICATOR)
-                arc.set_value(arc_value)
-                label.set_text(f"Camera {CAM_LIVE}")
+                    arc.remove_style(style_arc_live, lv.PART.INDICATOR)
+                    arc.add_style(style_arc_live, lv.PART.INDICATOR)
+                    arc.set_value(arc_value)
+
+            else:
+                setup_tally_camera()
+            if "SET_CAM" in message and isinstance(message["SET_CAM"], int):
+                print("Seen SET_CAM")
+                set_tally_camera(message["SET_CAM"])
         except ValueError:
             # TODO: This becomes b'' on socket failure, doesn't otherwise except.
             print(data)
