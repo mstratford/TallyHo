@@ -9,6 +9,7 @@ from micropython import const
 import machine
 import time
 import errno
+from machine import WDT
 
 CPU_FREQ_HZ = 160000000  # 160Mhz. Valid options 80, 160
 
@@ -49,6 +50,8 @@ CAM_PREV: int = 0
 MAX_CAMERAS = 99
 
 PING_PERIOD_MS = 1000 * 10  # 10 secs
+
+wdt: WDT
 
 # LVGL display engine
 import lvgl as lv
@@ -142,6 +145,9 @@ def setup_board():
     machine.freq(CPU_FREQ_HZ)
     if machine.freq() != 160000000:
         print(f"Failed to set CPU speed to {CPU_FREQ_HZ}Hz, currently {machine.freq()}")
+    global wdt
+    wdt = WDT(timeout=10000)
+    wdt.feed()
 
 
 display: display_driver_framework.DisplayDriver
@@ -219,6 +225,7 @@ def setup_network():
             return
         fullScreen.display(f"WIFI Connecting...\nSSID:{details[0]}", lv.SYMBOL.WIFI)
         while not sta_if.isconnected():
+            wdt.feed()
             pass
 
         print("network config:", sta_if.ipconfig("addr4"))
@@ -410,6 +417,9 @@ def main():
     next_ping_time: int = time.ticks_ms() + PING_PERIOD_MS
 
     while True:
+        # Feed the watchdog timer
+        wdt.feed()
+
         if next_ping_time > 0 and time.ticks_ms() > next_ping_time:
             # Ping time hasn't been updated, we're not talking to the server...
             print("Ping timer exceeded")
