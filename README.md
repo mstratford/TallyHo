@@ -24,8 +24,8 @@ Well, that's what i'm making here!
 
 ### Longer term
 * Ease deployment by using centralised power distribution:
-    * ideas about PoE adapters
-* Support other switches / OBS etc
+    * ideas about PoE adapters/dongles (I have a PoE switch and lots of Cat5e!)
+* Support other switchers / OBS etc
 
 
 ## Development
