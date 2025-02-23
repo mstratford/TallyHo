@@ -389,6 +389,7 @@ def main():
         try:
             if reconnect:
                 if s:
+                    s.close()
                     del s
                 s = socket.socket()
                 s.connect(addr)
