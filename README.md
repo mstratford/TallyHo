@@ -30,7 +30,7 @@ Well, that's what i'm making here!
 
 ## Development
 
-Instructions at [DEVELOPMENT.MD](DEVELOPMENT.MD)
+Instructions at [DEVELOPMENT.md](DEVELOPMENT.md)
 
 ## Say Hi!
 
