@@ -27,7 +27,7 @@ cd lvgl_micropython
 python3 make.py esp32 BOARD=ESP32_GENERIC_C3 DISPLAY=GC9A01
 ```
 
-On my board there is bug with the interaction between MicroPython 5.2.2 and ESP-IDF, you may need to add the following line to `lvgl_micropython/lib/micropython/ports/esp32/boards/ESP32_GENERIC_C3/mpconfigboard.h`:
+On my board there is bug with the interaction between MicroPython 1.24.1, the ESP_GENERIC_C3 and ESP-IDF 5.2.3, you may need to add the following line to `lvgl_micropython/lib/micropython/ports/esp32/boards/ESP32_GENERIC_C3/mpconfigboard.h`:
 
 ```
 #define USB_SERIAL_JTAG_PACKET_SZ_BYTES (64)
