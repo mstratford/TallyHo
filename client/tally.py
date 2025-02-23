@@ -7,7 +7,7 @@ import lcd_bus
 # from lvgl_micropython import display_driver_framework
 from micropython import const
 import machine
-from time import sleep
+import time
 import errno
 
 # display settings
@@ -45,6 +45,8 @@ CAM_LIVE: int = 0
 CAM_PREV: int = 0
 
 MAX_CAMERAS = 99
+
+PING_PERIOD_MS = 1000 * 10  # 10 secs
 
 # LVGL display engine
 import lvgl as lv
@@ -212,7 +214,7 @@ def setup_network():
         fullScreen.display(
             f"WIFI Connected!\n{sta_if.ipconfig('addr4')[0]}", lv.SYMBOL.WIFI, COLOR_OK
         )
-        sleep(2)
+        time.sleep(2)
         fullScreen.display(None)
     return True
 
@@ -221,7 +223,7 @@ def _new_tally_cam():
     print("Setting Cam 1")
     fullScreen.display("Setting Cam 1", icon=lv.SYMBOL.PLUS, color=COLOR_OK)
     set_tally_camera(1)
-    sleep(2)
+    time.sleep(2)
     return 1
 
 
@@ -249,7 +251,7 @@ def setup_tally_camera():
         print(e)
         print("Invalid Cam Number")
         fullScreen.display("Invalid Cam Number")
-        sleep(2)
+        time.sleep(2)
         return
 
 
@@ -292,7 +294,7 @@ def setup_task_handler():
         th = task_handler.TaskHandler()
     except:
         print("Exception in task handler, restarting.")
-        sleep(3)
+        time.sleep(3)
         machine.reset()
 
 
@@ -316,7 +318,7 @@ def setup():
     setup_task_handler()
     setup_scrn_main()
     if not setup_network():
-        sleep(20)
+        time.sleep(20)
         machine.reset()
     setup_tally_camera()
 
@@ -391,7 +393,17 @@ def main():
 
     s = None
     reconnect = True
+
+    next_ping_time: int = time.ticks_ms() + PING_PERIOD_MS
+
     while True:
+        if next_ping_time > 0 and time.ticks_ms() > next_ping_time:
+            # Ping time hasn't been updated, we're not talking to the server...
+            print("Ping timer exceeded")
+            reconnect = True
+            fullScreen.display("Ping time exceeded!")
+            next_ping_time = -1
+            time.sleep(2)
         # setup_network()
         try:
             if reconnect:
@@ -404,6 +416,7 @@ def main():
                 s.settimeout(0.2)
                 reconnect = False
                 fullScreen.display(None)
+                next_ping_time: int = time.ticks_ms() + PING_PERIOD_MS
             message_buffer = b""
             try:
                 data = s.readline()
@@ -463,8 +476,10 @@ def main():
                             lv.SYMBOL.GPS,
                             COLOR_OK if i % 2 else COLOR_STDBY,
                         )
-                        sleep(1)
+                        time.sleep(1)
                     fullScreen.display(None)
+                if "PING" in message:
+                    next_ping_time = time.ticks_ms() + PING_PERIOD_MS
 
             else:
                 setup_tally_camera()
@@ -480,16 +495,16 @@ def main():
             raise
         except OSError as e:
             if e.args[0] == errno.EAGAIN:
-                sleep(0.05)
+                time.sleep(0.05)
                 continue
-            sleep(1)
+            time.sleep(1)
             print(f"Got OS Error: {e}")
             print("Reconnecting")
             fullScreen.display(e)
             reconnect = True
         except Exception as e:
             print(e)
-            sleep(1)
+            time.sleep(1)
 
 
 try:

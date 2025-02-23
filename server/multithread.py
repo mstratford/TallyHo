@@ -41,6 +41,12 @@ def on_new_client(conn, addr):
         }
         send_message(conn, message)
         sleep(1)
+        message = {
+            "MAC": None,  # Round one
+            "PING": True,
+        }
+        send_message(conn, message)
+
     conn.close()
 
 
