@@ -11,45 +11,49 @@ import time
 import errno
 from machine import WDT
 
-CPU_FREQ_HZ = 160000000  # 160Mhz. Valid options 80, 160
+MODEL = "ESP32-2424S012"
 
-# display settings
-_WIDTH = const(240)
-_HEIGHT = const(240)
-_BL = const(3)
-_RST = const(4)
-_DC = const(2)
-_MOSI = const(7)
-_MISO = const(-1)
-_SCK = const(6)
-_HOST = const(1)  # SPI2
+# Sadly we don't have match case in this version of MicroPython.
+if MODEL == "ESP32-2424S012":
+    CPU_FREQ_HZ = 160000000  # 160Mhz. Valid options 80, 160
 
-_LCD_CS = const(10)
-_LCD_FREQ = const(80000000)
+    # display settings
+    _WIDTH = const(240)
+    _HEIGHT = const(240)
+    _BL = const(3)
+    _RST = const(4)
+    _DC = const(2)
+    _MOSI = const(7)
+    _MISO = const(-1)
+    _SCK = const(6)
+    _HOST = const(1)  # SPI2
 
-_LCD_BYTE_ORDER_RGB = const(0x00)
-_LCD_BYTE_ORDER_BGR = const(0x08)
+    _LCD_CS = const(10)
+    _LCD_FREQ = const(80000000)
 
-_LCD_BYTE_COLOR_SWAP = True
+    _LCD_BYTE_ORDER_RGB = const(0x00)
+    _LCD_BYTE_ORDER_BGR = const(0x08)
 
-_TOUCH_CS = const(18)
-_TOUCH_FREQ = const(10000000)
+    _LCD_BYTE_COLOR_SWAP = True
 
+    _TOUCH_CS = const(18)
+    _TOUCH_FREQ = const(10000000)
 
-COLOR_WARNING = 0xFF6600
-COLOR_OK = 0x007700
+    COLOR_WARNING = 0xFF6600
+    COLOR_OK = 0x007700
 
-COLOR_LIVE = 0xFF0000
-COLOR_PREV = COLOR_OK
-COLOR_STDBY = 0x222222
+    COLOR_LIVE = 0xFF0000
+    COLOR_PREV = COLOR_OK
+    COLOR_STDBY = 0x222222
 
-CAMERA_NUMBER: int = -1
-CAM_LIVE: int = 0
-CAM_PREV: int = 0
+    CAMERA_NUMBER: int = -1
+    CAM_LIVE: int = 0
+    CAM_PREV: int = 0
 
-MAX_CAMERAS = 99
+    MAX_CAMERAS = 99
 
-PING_PERIOD_MS = 1000 * 10  # 10 secs
+    PING_PERIOD_MS = 1000 * 10  # 10 secs
+
 
 wdt: WDT
 
