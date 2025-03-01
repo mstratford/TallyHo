@@ -14,85 +14,6 @@ from machine import WDT
 _LCD_BYTE_ORDER_RGB = const(0x00)
 _LCD_BYTE_ORDER_BGR = const(0x08)
 
-# LVGL display engine
-import lvgl as lv
-
-# The main lvgl Tally Screen
-scrn: lv.obj = None
-
-MODEL = "ESP32-2424S012"
-# MODEL = "ESP32-C6-LCD-1.47"
-
-
-# Sadly we don't have match case in this version of MicroPython.
-if MODEL == "ESP32-2424S012":
-    CPU_FREQ_HZ = 160000000  # 160Mhz. Valid options 80, 160
-
-    # display settings
-    _WIDTH = 240
-    _HEIGHT = 240
-    _BL = 3
-    _RST = 4
-    _DC = 2
-    _MOSI = 7
-    _MISO = -1
-    _SCK = 6
-    _HOST = 1  # SPI2
-
-    _LCD_CS = 10
-    _LCD_FREQ = 80000000
-
-    _LCD_BYTE_ORDER = _LCD_BYTE_ORDER_BGR
-
-    _LCD_BYTE_COLOR_SWAP = True
-
-    _LCD_DRIVER_TYPE = "GC9A01"
-
-    _LCD_ROTATION = lv.DISPLAY_ROTATION._0
-
-    _LCD_OFFSET_X = 0
-    _LCD_OFFSET_Y = 0
-
-    _TOUCH = True
-    _TOUCH_CS = 18
-    _TOUCH_FREQ = 10000000
-
-
-elif MODEL == "ESP32-C6-LCD-1.47":
-    CPU_FREQ_HZ = 160000000  # 160Mhz. Valid options 80, 160
-
-    # display settings
-    _WIDTH = 172
-    _HEIGHT = 320
-    _BL = 22
-    _RST = 21
-    _DC = 15
-    _MOSI = 6
-    _MISO = -1
-    _SCK = 7
-    _HOST = 1  # SPI2
-
-    _LCD_CS = 14
-    _LCD_FREQ = 80000000
-
-    _LCD_BYTE_ORDER = _LCD_BYTE_ORDER_BGR
-
-    _LCD_BYTE_COLOR_SWAP = True
-
-    _LCD_DRIVER_TYPE = "ST7789"
-
-    _LCD_ROTATION = lv.DISPLAY_ROTATION._270  # USB C port on left
-
-    _LCD_OFFSET_X = 0
-    _LCD_OFFSET_Y = int(
-        (240 - 172) / 2
-    )  # The display driver operates like a 240px width. The real display is 174px in the center.
-
-    _TOUCH = False
-else:
-    raise Exception(f"Unknown board model defined: {MODEL}")
-
-
 COLOR_WARNING = 0xFF6600
 COLOR_OK = 0x007700
 
@@ -108,6 +29,62 @@ MAX_CAMERAS = 99
 
 PING_PERIOD_MS = 1000 * 10  # 10 secs
 wdt: WDT
+
+# LVGL display engine
+import lvgl as lv
+
+# The main lvgl Tally Screen
+scrn: lv.obj = None
+
+# MODEL = "ESP32-2424S012"
+MODEL = "ESP32-C6-LCD-1.47"
+
+# Board config defaults
+
+_CPU_FREQ_HZ = 160000000  # 160Mhz. Valid options 80, 160 for C series ESP32
+_MISO = -1  # Uses bidirection MOSI line instead
+_HOST = 1  # SPI2, SPI1 is dedicated on ESP32 to flash
+_TOUCH_CS = -1  # No touch
+_TOUCH_FREQ = 10000000
+_LCD_FREQ = 80000000
+_LCD_ROTATION = lv.DISPLAY_ROTATION._0
+_LCD_BYTE_ORDER = _LCD_BYTE_ORDER_BGR
+_LCD_BYTE_COLOR_SWAP = True
+_LCD_OFFSET_X = 0
+_LCD_OFFSET_Y = 0
+
+# Sadly we don't have match case in this version of MicroPython.
+if MODEL == "ESP32-2424S012":
+    _WIDTH = 240
+    _HEIGHT = 240
+    _BL = 3
+    _DC = 2
+    _MOSI = 7
+    _MISO = -1
+    _SCK = 6
+    _LCD_CS = 10
+    _LCD_DRIVER_TYPE = "GC9A01"
+
+    _TOUCH_CS = 18
+
+
+elif MODEL == "ESP32-C6-LCD-1.47":
+    _WIDTH = 172
+    _HEIGHT = 320
+    _BL = 22
+    _DC = 15
+    _MOSI = 6
+    _SCK = 7
+
+    _LCD_CS = 14
+    _LCD_DRIVER_TYPE = "ST7789"
+    _LCD_ROTATION = lv.DISPLAY_ROTATION._270  # USB C port on left
+    _LCD_OFFSET_Y = int(
+        (240 - 172) / 2
+    )  # The display driver operates like a 240px width. The real display is 174px in the center.
+
+else:
+    raise Exception(f"Unknown board model defined: {MODEL}")
 
 
 def mac_2_str(mac, end_bytes=0):
@@ -190,11 +167,13 @@ fullScreen = fullScreenMessage()
 
 def setup_board():
     print("Setup_board")
-    print(f"Setting CPU Freq to {CPU_FREQ_HZ/1000000}MHz")
+    print(f"Setting CPU Freq to {_CPU_FREQ_HZ/1000000}MHz")
     print(f"Currently {machine.freq()/1000000}")
-    machine.freq(CPU_FREQ_HZ)
+    machine.freq(_CPU_FREQ_HZ)
     if machine.freq() != 160000000:
-        print(f"Failed to set CPU speed to {CPU_FREQ_HZ}Hz, currently {machine.freq()}")
+        print(
+            f"Failed to set CPU speed to {_CPU_FREQ_HZ}Hz, currently {machine.freq()}"
+        )
     global wdt
     wdt = WDT(timeout=10000)
     wdt.feed()
