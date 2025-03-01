@@ -25,6 +25,24 @@ CAMERA_NUMBER: int = -1
 CAM_LIVE: int = 0
 CAM_PREV: int = 0
 
+LED_COLOR_RED = [255, 0, 0]
+LED_COLOR_GREEN = [0, 255, 0]
+LED_COLOR_BLUE = [0, 0, 255]
+LED_COLOR_YELLOW = [255, 255, 0]
+LED_COLOR_PURPLE = [255, 0, 255]
+LED_COLOR_CYAN = [0, 255, 255]
+LED_COLOR_WHITE = [255, 255, 255]
+LED_COLOR_OFF = [0, 0, 0]
+LED_COLORS = [
+    LED_COLOR_RED,
+    LED_COLOR_YELLOW,
+    LED_COLOR_GREEN,
+    LED_COLOR_CYAN,
+    LED_COLOR_BLUE,
+    LED_COLOR_PURPLE,
+    LED_COLOR_OFF,
+]
+
 MAX_CAMERAS = 99
 
 PING_PERIOD_MS = 1000 * 10  # 10 secs
@@ -52,6 +70,13 @@ _LCD_BYTE_ORDER = _LCD_BYTE_ORDER_BGR
 _LCD_BYTE_COLOR_SWAP = True
 _LCD_OFFSET_X = 0
 _LCD_OFFSET_Y = 0
+_NEOPIXEL = -1
+_NEOPIXEL_COUNT = 1
+_NEOPIXEL_BYTE_ORDER = (
+    0,
+    1,
+    2,
+)  # R, B, G as array indexes, e.g. R is position 0 in the color array, G is position 1 etc
 
 # Sadly we don't have match case in this version of MicroPython.
 if MODEL == "ESP32-2424S012":
@@ -81,8 +106,9 @@ elif MODEL == "ESP32-C6-LCD-1.47":
     _LCD_ROTATION = lv.DISPLAY_ROTATION._270  # USB C port on left
     _LCD_OFFSET_Y = int(
         (240 - 172) / 2
-    )  # The display driver operates like a 240px width. The real display is 174px in the center.
-
+    )  # The display driver operates like a 240px width. The real display is 172px in the center.
+    _NEOPIXEL = 8
+    _NEOPIXEL_BYTE_ORDER = (1, 0, 2)  # Swap R and G
 else:
     raise Exception(f"Unknown board model defined: {MODEL}")
 
@@ -177,6 +203,17 @@ def setup_board():
     global wdt
     wdt = WDT(timeout=10000)
     wdt.feed()
+
+    if _NEOPIXEL > -1:
+        import neopixel
+
+        global np
+        np = neopixel.NeoPixel(machine.Pin(_NEOPIXEL), _NEOPIXEL_COUNT)
+
+        # Cycle all the colors and then off.
+        for color in LED_COLORS:
+            set_neopixel_rgb(color)
+            time.sleep(0.2)
 
 
 display: display_driver_framework.DisplayDriver
@@ -337,6 +374,34 @@ def set_tally_camera(num: int):
         print(e)
         fullScreen.display("Failed to write cam number!")
         return
+
+
+def set_neopixel_rgb(rgb: list = LED_COLOR_OFF):
+    """
+    Set Neopixel (if available) to a certain color
+    @param rgb: 3 part list (such that it can be reversed) of RGB colors.
+    @returns bool: Whether this was actioned (e.g. if Neopixel was present)
+    """
+    if _NEOPIXEL > -1:
+        # If we have a BGR neopixel rather than a RGB one
+        new_rgb = [0, 0, 0]
+        if _NEOPIXEL_BYTE_ORDER != [0, 1, 2]:
+            print(
+                f"Reordering neopixel from: {rgb} using byteorder: {_NEOPIXEL_BYTE_ORDER}"
+            )
+            # Reorder bytes based on the byte order defined.
+            new_rgb[0] = rgb[_NEOPIXEL_BYTE_ORDER[0]]
+            new_rgb[1] = rgb[_NEOPIXEL_BYTE_ORDER[1]]
+            new_rgb[2] = rgb[_NEOPIXEL_BYTE_ORDER[2]]
+        else:
+            # Copies by reference, so we can't just set this above and override if different byte order.
+            new_rgb = rgb
+        # np Should be defined already in setup_board
+        print(f"Setting neopixel to: {new_rgb}")
+        np.fill(new_rgb)
+        np.write()
+        return True
+    return False
 
 
 import task_handler
@@ -525,10 +590,17 @@ def main():
                     if CAM_LIVE == CAMERA_NUMBER:
                         style_arc_live.set_arc_color(lv.color_hex(COLOR_LIVE))
                         arc_value = 100
+                        set_neopixel_rgb(LED_COLOR_RED)
+                        print("CAM LIVE")
                     elif CAM_PREV == CAMERA_NUMBER:
                         style_arc_live.set_arc_color(lv.color_hex(COLOR_PREV))
                         # Make a nice cut out for preview
                         arc_value = 80
+                        set_neopixel_rgb(LED_COLOR_GREEN)
+                        print("CAM PREVIEW")
+                    else:
+                        set_neopixel_rgb(LED_COLOR_OFF)
+                        print("CAM STANDBY")
 
                     arc.remove_style(style_arc_live, lv.PART.INDICATOR)
                     arc.add_style(style_arc_live, lv.PART.INDICATOR)
