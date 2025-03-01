@@ -11,57 +11,103 @@ import time
 import errno
 from machine import WDT
 
-MODEL = "ESP32-2424S012"
-
-# Sadly we don't have match case in this version of MicroPython.
-if MODEL == "ESP32-2424S012":
-    CPU_FREQ_HZ = 160000000  # 160Mhz. Valid options 80, 160
-
-    # display settings
-    _WIDTH = const(240)
-    _HEIGHT = const(240)
-    _BL = const(3)
-    _RST = const(4)
-    _DC = const(2)
-    _MOSI = const(7)
-    _MISO = const(-1)
-    _SCK = const(6)
-    _HOST = const(1)  # SPI2
-
-    _LCD_CS = const(10)
-    _LCD_FREQ = const(80000000)
-
-    _LCD_BYTE_ORDER_RGB = const(0x00)
-    _LCD_BYTE_ORDER_BGR = const(0x08)
-
-    _LCD_BYTE_COLOR_SWAP = True
-
-    _TOUCH_CS = const(18)
-    _TOUCH_FREQ = const(10000000)
-
-    COLOR_WARNING = 0xFF6600
-    COLOR_OK = 0x007700
-
-    COLOR_LIVE = 0xFF0000
-    COLOR_PREV = COLOR_OK
-    COLOR_STDBY = 0x222222
-
-    CAMERA_NUMBER: int = -1
-    CAM_LIVE: int = 0
-    CAM_PREV: int = 0
-
-    MAX_CAMERAS = 99
-
-    PING_PERIOD_MS = 1000 * 10  # 10 secs
-
-
-wdt: WDT
+_LCD_BYTE_ORDER_RGB = const(0x00)
+_LCD_BYTE_ORDER_BGR = const(0x08)
 
 # LVGL display engine
 import lvgl as lv
 
 # The main lvgl Tally Screen
 scrn: lv.obj = None
+
+MODEL = "ESP32-2424S012"
+# MODEL = "ESP32-C6-LCD-1.47"
+
+
+# Sadly we don't have match case in this version of MicroPython.
+if MODEL == "ESP32-2424S012":
+    CPU_FREQ_HZ = 160000000  # 160Mhz. Valid options 80, 160
+
+    # display settings
+    _WIDTH = 240
+    _HEIGHT = 240
+    _BL = 3
+    _RST = 4
+    _DC = 2
+    _MOSI = 7
+    _MISO = -1
+    _SCK = 6
+    _HOST = 1  # SPI2
+
+    _LCD_CS = 10
+    _LCD_FREQ = 80000000
+
+    _LCD_BYTE_ORDER = _LCD_BYTE_ORDER_BGR
+
+    _LCD_BYTE_COLOR_SWAP = True
+
+    _LCD_DRIVER_TYPE = "GC9A01"
+
+    _LCD_ROTATION = lv.DISPLAY_ROTATION._0
+
+    _LCD_OFFSET_X = 0
+    _LCD_OFFSET_Y = 0
+
+    _TOUCH = True
+    _TOUCH_CS = 18
+    _TOUCH_FREQ = 10000000
+
+
+elif MODEL == "ESP32-C6-LCD-1.47":
+    CPU_FREQ_HZ = 160000000  # 160Mhz. Valid options 80, 160
+
+    # display settings
+    _WIDTH = 172
+    _HEIGHT = 320
+    _BL = 22
+    _RST = 21
+    _DC = 15
+    _MOSI = 6
+    _MISO = -1
+    _SCK = 7
+    _HOST = 1  # SPI2
+
+    _LCD_CS = 14
+    _LCD_FREQ = 80000000
+
+    _LCD_BYTE_ORDER = _LCD_BYTE_ORDER_BGR
+
+    _LCD_BYTE_COLOR_SWAP = True
+
+    _LCD_DRIVER_TYPE = "ST7789"
+
+    _LCD_ROTATION = lv.DISPLAY_ROTATION._270  # USB C port on left
+
+    _LCD_OFFSET_X = 0
+    _LCD_OFFSET_Y = int(
+        (240 - 172) / 2
+    )  # The display driver operates like a 240px width. The real display is 174px in the center.
+
+    _TOUCH = False
+else:
+    raise Exception(f"Unknown board model defined: {MODEL}")
+
+
+COLOR_WARNING = 0xFF6600
+COLOR_OK = 0x007700
+
+COLOR_LIVE = 0xFF0000
+COLOR_PREV = COLOR_OK
+COLOR_STDBY = 0x222222
+
+CAMERA_NUMBER: int = -1
+CAM_LIVE: int = 0
+CAM_PREV: int = 0
+
+MAX_CAMERAS = 99
+
+PING_PERIOD_MS = 1000 * 10  # 10 secs
+wdt: WDT
 
 
 def mac_2_str(mac, end_bytes=0):
@@ -163,10 +209,8 @@ def setup_display():
     Order of operations here is important for the display to initialize properly. Else, you may experience display snow/crash.
     """
     print("Setup_display: SPI")
-    import gc9a01
 
     spi_bus = machine.SPI.Bus(host=_HOST, mosi=_MOSI, miso=_MISO, sck=_SCK)
-    # spi_bus =
     display_bus = lcd_bus.SPIBus(
         spi_bus=spi_bus,
         freq=_LCD_FREQ,
@@ -181,21 +225,35 @@ def setup_display():
         lv.deinit()
         lv.init()
 
-    print("Setup_display: display")
+    print(f"Setup_display: display type: {_LCD_DRIVER_TYPE}")
     global display
-    display = gc9a01.GC9A01(
+    if _LCD_DRIVER_TYPE == "GC9A01":
+        import gc9a01
+
+        display_class = gc9a01.GC9A01
+
+    elif _LCD_DRIVER_TYPE == "ST7789":
+        import st7789
+
+        display_class = st7789.ST7789
+
+    display = display_class(
         data_bus=display_bus,
         display_width=_WIDTH,
         display_height=_HEIGHT,
         backlight_pin=_BL,
         color_space=lv.COLOR_FORMAT.RGB565,
-        color_byte_order=_LCD_BYTE_ORDER_BGR,
+        color_byte_order=_LCD_BYTE_ORDER,
         rgb565_byte_swap=_LCD_BYTE_COLOR_SWAP,
+        offset_x=_LCD_OFFSET_X,
+        offset_y=_LCD_OFFSET_Y,
     )
 
     display.set_power(True)
     display.init()
     display.set_backlight(100)
+
+    display.set_rotation(_LCD_ROTATION)
 
 
 import network
