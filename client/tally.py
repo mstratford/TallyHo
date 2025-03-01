@@ -517,7 +517,7 @@ def main():
                     changed = True
                 if "CAM_PREV" in message:
                     CAM_PREV = int(message["CAM_PREV"])
-                    print(f"LIVE CAM: {CAM_PREV}")
+                    print(f"PREV CAM: {CAM_PREV}")
                     changed = True
                 if changed:
 
