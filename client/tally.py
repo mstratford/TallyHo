@@ -88,6 +88,43 @@ _NEOPIXEL_BYTE_ORDER = (
     2,
 )  # R, B, G as array indexes, e.g. R is position 0 in the color array, G is position 1 etc
 
+MODEL_ESP32_2424S012 = "ESP32-2424S012"
+MODEL_ESP32_C6_LCD_1_47 = "ESP32-C6-LCD-1.47"
+MODELS = [MODEL_ESP32_2424S012, MODEL_ESP32_C6_LCD_1_47]
+
+MODEL: str = ""
+
+
+def setup_model():
+    global MODEL
+    try:
+        model = open("model.txt").read()
+        if model in MODELS:
+            MODEL = model
+            return
+    except:
+        pass
+
+    print("No model set! Select one:")
+    i = 0
+    for model in MODELS:
+        print(f"[{i}]: {model}")
+        i += 1
+
+    while True:
+        try:
+            model_no = int(input("Input number: ").strip())
+            if i > model_no > -1:
+                MODEL = MODELS[model_no]
+                with open("model.txt", "w") as file:
+                    file.write(MODEL)
+                return
+        except:
+            continue
+
+
+setup_model()
+
 # Sadly we don't have match case in this version of MicroPython.
 if MODEL == "ESP32-2424S012":
     _WIDTH = 240
@@ -205,7 +242,7 @@ fullScreen = fullScreenMessage()
 
 # The indicator on screen for camera status (live, preview, standby)
 class Indicator:
-    def __init__(self, screen, style=INDICATOR_STYLE):
+    def __init__(self, screen, style):
         self.screen = screen
         self.style = style
         function = {
