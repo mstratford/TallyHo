@@ -670,5 +670,5 @@ except Exception as e:
     """
     Try to display the exception to the screen if we can!
     """
-    fullScreen.display(str(e))
+    fullScreen.display(f"{type(e).__name__}\n{str(e)}")
     raise e
