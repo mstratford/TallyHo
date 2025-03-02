@@ -159,6 +159,7 @@ class fullScreenMessage:
             if self.scrn_full:
                 del self.scrn_full
                 self.scrn_err = None
+                set_neopixel_rgb()  # Turn the neopixel off
             return
 
         elif not self.scrn_full:
@@ -181,6 +182,9 @@ class fullScreenMessage:
         self.text_label.set_text(str(msg))
 
         lv.screen_load(self.scrn_full)
+
+        # If we have a neopixel, make it match the icon color.
+        set_neopixel_rgb(hex=color)
 
 
 fullScreen = fullScreenMessage()
@@ -376,15 +380,21 @@ def set_tally_camera(num: int):
         return
 
 
-def set_neopixel_rgb(rgb: list = LED_COLOR_OFF):
+def set_neopixel_rgb(rgb: list = LED_COLOR_OFF, hex: int = -1):
     """
     Set Neopixel (if available) to a certain color
-    @param rgb: 3 part list (such that it can be reversed) of RGB colors.
+    @param rgb: 3 part list of RGB colors.
+    @param hex: hex color value to override rgb. Useful to set values from LCD consts.
     @returns bool: Whether this was actioned (e.g. if Neopixel was present)
     """
     if _NEOPIXEL > -1:
         # If we have a BGR neopixel rather than a RGB one
         new_rgb = [0, 0, 0]
+        if hex > -1:
+            r = (hex & 0xFF0000) >> 16
+            g = (hex & 0x00FF00) >> 8
+            b = hex & 0x0000FF
+            rgb = [r, g, b]
         if _NEOPIXEL_BYTE_ORDER != [0, 1, 2]:
             print(
                 f"Reordering neopixel from: {rgb} using byteorder: {_NEOPIXEL_BYTE_ORDER}"
@@ -654,6 +664,7 @@ except KeyboardInterrupt:
     if display:
         display.set_backlight(0)
         display.set_power(False)
+    set_neopixel_rgb()
     machine.reset()
 except Exception as e:
     """
