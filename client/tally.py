@@ -91,6 +91,7 @@ _NEOPIXEL_BYTE_ORDER = (
 _DEFAULT_BL_BRIGHTNESS_PCT = 80  # Don't fully cook the backlight.
 
 CONFIG_PATH = "config/"
+CONFIG_BOOT_SUCCESS = "unsuccessful_boots"
 CONFIG_MODEL = "model"
 CONFIG_BACKLIGHT = "backlight"
 CONFIG_WIFI = "wifi"
@@ -125,6 +126,22 @@ def set_config_value(file, contents):
     print(f"[CONFIG] Writing {filename} with: {contents}")
     with open(filename, "w") as obj:
         obj.write(contents)
+
+
+_BOOT_SUCCESS = False
+
+
+def set_boot_success():
+    """
+    Mark to the bootloader that we started successfully
+    Every boot it will reset this so it can detect if we're crashing
+        and launch into the REPL for debug.
+    """
+    global _BOOT_SUCCESS
+    if not _BOOT_SUCCESS:
+        print("[BOOT] Marking successful boot.")
+        set_config_value(CONFIG_BOOT_SUCCESS, "-1")
+        _BOOT_SUCCESS = True
 
 
 MODEL_ESP32_2424S012 = "ESP32-2424S012"
@@ -798,6 +815,9 @@ def main():
             if "SET_CAM" in message and isinstance(message["SET_CAM"], int):
                 print("Seen SET_CAM")
                 set_tally_camera(message["SET_CAM"])
+
+            # We got the to the end of the main loop succesfully.
+            set_boot_success()
         except ValueError:
             # TODO: This becomes b'' on socket failure, doesn't otherwise except.
             print(data)
