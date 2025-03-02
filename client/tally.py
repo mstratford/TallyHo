@@ -57,6 +57,12 @@ scrn: lv.obj = None
 # MODEL = "ESP32-2424S012"
 MODEL = "ESP32-C6-LCD-1.47"
 
+INDICATOR_STYLE_TOP = "TOP"
+INDICATOR_STYLE_BOTTOM = "BOTTOM"
+INDICATOR_STYLE_LEFT = "LEFT"
+INDICATOR_STYLE_RIGHT = "RIGHT"
+INDICATOR_STYLE_ARC = "ARC"
+
 # Board config defaults
 
 _CPU_FREQ_HZ = 160000000  # 160Mhz. Valid options 80, 160 for C series ESP32
@@ -91,6 +97,7 @@ if MODEL == "ESP32-2424S012":
     _LCD_DRIVER_TYPE = "GC9A01"
 
     _TOUCH_CS = 18
+    INDICATOR_STYLE = INDICATOR_STYLE_ARC
 
 
 elif MODEL == "ESP32-C6-LCD-1.47":
@@ -109,6 +116,8 @@ elif MODEL == "ESP32-C6-LCD-1.47":
     )  # The display driver operates like a 240px width. The real display is 172px in the center.
     _NEOPIXEL = 8
     _NEOPIXEL_BYTE_ORDER = (1, 0, 2)  # Swap R and G
+
+    INDICATOR_STYLE = INDICATOR_STYLE_ARC  # INDICATOR_STYLE_BOTTOM
 else:
     raise Exception(f"Unknown board model defined: {MODEL}")
 
@@ -188,6 +197,58 @@ class fullScreenMessage:
 
 
 fullScreen = fullScreenMessage()
+
+
+# The indicator on screen for camera status (live, preview, standby)
+class Indicator:
+    def __init__(self, screen, style=INDICATOR_STYLE):
+        self.screen = screen
+        self.style = style
+        function = {INDICATOR_STYLE_ARC: self.init_arc}
+        function[style]()
+
+    def set_state(self, state=COLOR_STDBY):
+        function = {INDICATOR_STYLE_ARC: self._set_state_arc}
+        return function[self.style](state)
+
+    def init_arc(self):
+        # Define an Arc to display the live / preview / standby status around the edge of the display
+        self.style_arc_live = lv.style_t()
+        self.style_arc_live.init()
+        # Default to the preview style
+        # It gets updated for live below.
+        self.style_arc_live.set_arc_color(lv.color_hex(COLOR_PREV))
+
+        self.style_arc_stdby = lv.style_t()
+        self.style_arc_stdby.init()
+        self.style_arc_stdby.set_arc_color(lv.color_hex(COLOR_STDBY))
+
+        arc = lv.arc(self.screen)
+        arc.set_bg_angles(0, 360)
+        arc.set_angles(0, 0)
+        # Arcs start at about 3 o'clock, rotate it so we can put a nice cut out at the bottom of the arc instead.
+        arc.set_rotation(125)
+        arc.set_value(0)
+        arc.center()
+        # Make the arc the size of the screen border
+        arc.set_size(_WIDTH, _HEIGHT)
+        # Remove the arc touch knob
+        arc.remove_style(None, lv.PART.KNOB)
+        arc.add_style(self.style_arc_live, lv.PART.INDICATOR)
+        arc.add_style(self.style_arc_stdby, lv.PART.MAIN)
+
+        self.arc = arc
+
+    def _set_state_arc(self, state):
+        # Set the arc color to whatever color you like, if it's preview, carve out the arc to 80%.
+        self.style_arc_live.set_arc_color(lv.color_hex(state))
+        arc_value = 100
+        if state == COLOR_PREV:
+            arc_value = 80
+        # Reapply the style with the new color.
+        self.arc.remove_style(self.style_arc_live, lv.PART.INDICATOR)
+        self.arc.add_style(self.style_arc_live, lv.PART.INDICATOR)
+        self.arc.set_value(arc_value)
 
 
 ###
@@ -489,35 +550,12 @@ def main():
 
     label.add_style(style_def, lv.PART.MAIN)
 
-    # Define an Arc to display the live / preview / standby status around the edge of the display
-    style_arc_live = lv.style_t()
-    style_arc_live.init()
-    # Default to the preview style
-    # It gets updated for live below.
-    style_arc_live.set_arc_color(lv.color_hex(COLOR_PREV))
-
-    style_arc_stdby = lv.style_t()
-    style_arc_stdby.init()
-    style_arc_stdby.set_arc_color(lv.color_hex(COLOR_STDBY))
-
-    arc = lv.arc(scrn)
-    arc.set_bg_angles(0, 360)
-    arc.set_angles(0, 0)
-    # Arcs start at about 3 o'clock, rotate it so we can put a nice cut out at the bottom of the arc instead.
-    arc.set_rotation(125)
-    arc.set_value(0)
-    arc.center()
-    # Make the arc the size of the screen border
-    arc.set_size(_WIDTH, _HEIGHT)
-    # Remove the arc touch knob
-    arc.remove_style(None, lv.PART.KNOB)
-    arc.add_style(style_arc_live, lv.PART.INDICATOR)
-    arc.add_style(style_arc_stdby, lv.PART.MAIN)
-
     # Show mac addr at bottom of the screen
     label_id = lv.label(scrn)
     label_id.align(lv.ALIGN.BOTTOM_MID, 0, -20)
     label_id.set_text(mac_2_str(get_mac(), end_bytes=2))
+
+    indicator = Indicator(scrn, INDICATOR_STYLE)
 
     # Now to the main show, connect to a local socket server which sends demo camera numbers, update the display and arc
     import socket
@@ -595,26 +633,18 @@ def main():
                     print(f"PREV CAM: {CAM_PREV}")
                     changed = True
                 if changed:
-
-                    arc_value = 0
                     if CAM_LIVE == CAMERA_NUMBER:
-                        style_arc_live.set_arc_color(lv.color_hex(COLOR_LIVE))
-                        arc_value = 100
+                        indicator.set_state(COLOR_LIVE)
                         set_neopixel_rgb(LED_COLOR_RED)
                         print("CAM LIVE")
                     elif CAM_PREV == CAMERA_NUMBER:
-                        style_arc_live.set_arc_color(lv.color_hex(COLOR_PREV))
-                        # Make a nice cut out for preview
-                        arc_value = 80
+                        indicator.set_state(COLOR_PREV)
                         set_neopixel_rgb(LED_COLOR_GREEN)
                         print("CAM PREVIEW")
                     else:
+                        indicator.set_state(COLOR_STDBY)
                         set_neopixel_rgb(LED_COLOR_OFF)
                         print("CAM STANDBY")
-
-                    arc.remove_style(style_arc_live, lv.PART.INDICATOR)
-                    arc.add_style(style_arc_live, lv.PART.INDICATOR)
-                    arc.set_value(arc_value)
                 if "IDENTIFY" in message:
                     for i in range(4):
                         fullScreen.display(
