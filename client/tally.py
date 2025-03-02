@@ -90,6 +90,43 @@ _NEOPIXEL_BYTE_ORDER = (
 )  # R, B, G as array indexes, e.g. R is position 0 in the color array, G is position 1 etc
 _DEFAULT_BL_BRIGHTNESS_PCT = 80  # Don't fully cook the backlight.
 
+CONFIG_PATH = "config/"
+CONFIG_MODEL = "model"
+CONFIG_BACKLIGHT = "backlight"
+CONFIG_WIFI = "wifi"
+CONFIG_CAMERA = "camera"
+
+
+def get_config_value(file, new_type: type = str, default: str = None):
+    filename = CONFIG_PATH + file
+    print(f"[CONFIG] Reading {filename}")
+    try:
+        contents = open(filename).read()
+        print(f'[CONFIG] Read: "{contents}"')
+        if new_type != str:
+            contents = new_type(contents)
+        return contents
+    except OSError as e:
+        print(f"[CONFIG] OS ERROR: {e}")
+    except Exception as e:
+        print(f"[CONFIG] Parse ERROR: {type(e).__name__}: {e}")
+    print(f"Returning default: {default}")
+    return default
+
+
+def set_config_value(file, contents):
+    filename = CONFIG_PATH + file
+    try:
+        mkdir(CONFIG_PATH)
+    except OSError:  # File exists
+        pass
+    if not isinstance(contents, str):
+        contents = str(contents)
+    print(f"[CONFIG] Writing {filename} with: {contents}")
+    with open(filename, "w") as obj:
+        obj.write(contents)
+
+
 MODEL_ESP32_2424S012 = "ESP32-2424S012"
 MODEL_ESP32_C6_LCD_1_47 = "ESP32-C6-LCD-1.47"
 MODELS = [MODEL_ESP32_2424S012, MODEL_ESP32_C6_LCD_1_47]
@@ -120,7 +157,10 @@ def setup_model():
                 MODEL = MODELS[model_no]
                 set_config_value(CONFIG_MODEL, MODEL)
                 return
-        except:
+        except KeyboardInterrupt as e:
+            raise e  # Pass to the upper handler
+        except Exception as e:
+            print(f"[MODEL] ERROR: {type(e).__name__}: {e}")
             continue
 
 
@@ -180,43 +220,6 @@ def get_ip():
 
 def get_subnet_mask():
     return sta_if.ipconfig("addr4")[1]
-
-
-CONFIG_PATH = "config/"
-CONFIG_MODEL = "model"
-CONFIG_BACKLIGHT = "backlight"
-CONFIG_WIFI = "wifi"
-CONFIG_CAMERA = "camera"
-
-
-def get_config_value(file, new_type: type = str, default: str = None):
-    filename = CONFIG_PATH + file
-    print(f"[CONFIG] Reading {filename}")
-    try:
-        contents = open(filename).read()
-        print(f'[CONFIG] Read: "{contents}"')
-        if new_type != str:
-            contents = new_type(contents)
-        return contents
-    except OSError as e:
-        print(f"[CONFIG] OS ERROR: {e}")
-    except Exception as e:
-        print(f"[CONFIG] Parse ERROR: {type(e).__name__}: {e}")
-    print(f"Returning default: {default}")
-    return default
-
-
-def set_config_value(file, contents):
-    filename = CONFIG_PATH + file
-    try:
-        mkdir(CONFIG_PATH)
-    except FileExistsError:
-        pass
-    if not isinstance(contents, str):
-        contents = str(contents)
-    print(f"[CONFIG] Writing {filename} with: {contents}")
-    with open(filename, "w") as obj:
-        obj.write(contents)
 
 
 class fullScreenMessage:
