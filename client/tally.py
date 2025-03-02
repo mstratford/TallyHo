@@ -10,6 +10,7 @@ import machine
 import time
 import errno
 from machine import WDT
+from os import mkdir
 
 _LCD_BYTE_ORDER_RGB = const(0x00)
 _LCD_BYTE_ORDER_BGR = const(0x08)
@@ -87,6 +88,7 @@ _NEOPIXEL_BYTE_ORDER = (
     1,
     2,
 )  # R, B, G as array indexes, e.g. R is position 0 in the color array, G is position 1 etc
+_DEFAULT_BL_BRIGHTNESS_PCT = 80  # Don't fully cook the backlight.
 
 MODEL_ESP32_2424S012 = "ESP32-2424S012"
 MODEL_ESP32_C6_LCD_1_47 = "ESP32-C6-LCD-1.47"
@@ -98,7 +100,7 @@ MODEL: str = ""
 def setup_model():
     global MODEL
     try:
-        model = open("model.txt").read()
+        model = get_config_value(CONFIG_MODEL)
         if model in MODELS:
             MODEL = model
             return
@@ -116,8 +118,7 @@ def setup_model():
             model_no = int(input("Input number: ").strip())
             if i > model_no > -1:
                 MODEL = MODELS[model_no]
-                with open("model.txt", "w") as file:
-                    file.write(MODEL)
+                set_config_value(CONFIG_MODEL, MODEL)
                 return
         except:
             continue
@@ -179,6 +180,43 @@ def get_ip():
 
 def get_subnet_mask():
     return sta_if.ipconfig("addr4")[1]
+
+
+CONFIG_PATH = "config/"
+CONFIG_MODEL = "model"
+CONFIG_BACKLIGHT = "backlight"
+CONFIG_WIFI = "wifi"
+CONFIG_CAMERA = "camera"
+
+
+def get_config_value(file, new_type: type = str, default: str = None):
+    filename = CONFIG_PATH + file
+    print(f"[CONFIG] Reading {filename}")
+    try:
+        contents = open(filename).read()
+        print(f'[CONFIG] Read: "{contents}"')
+        if new_type != str:
+            contents = new_type(contents)
+        return contents
+    except OSError as e:
+        print(f"[CONFIG] OS ERROR: {e}")
+    except Exception as e:
+        print(f"[CONFIG] Parse ERROR: {type(e).__name__}: {e}")
+    print(f"Returning default: {default}")
+    return default
+
+
+def set_config_value(file, contents):
+    filename = CONFIG_PATH + file
+    try:
+        mkdir(CONFIG_PATH)
+    except FileExistsError:
+        pass
+    if not isinstance(contents, str):
+        contents = str(contents)
+    print(f"[CONFIG] Writing {filename} with: {contents}")
+    with open(filename, "w") as obj:
+        obj.write(contents)
 
 
 class fullScreenMessage:
@@ -424,7 +462,9 @@ def setup_display():
 
     display.set_power(True)
     display.init()
-    display.set_backlight(100)
+    display.set_backlight(
+        get_config_value(CONFIG_BACKLIGHT, int, _DEFAULT_BL_BRIGHTNESS_PCT)
+    )
 
     display.set_rotation(_LCD_ROTATION)
 
@@ -447,19 +487,19 @@ def setup_network():
     if not sta_if.isconnected():
         print("connecting to network...")
         sta_if.active(True)
-        try:
-            # The username and password can be persisted to the ESP32 flash
-            # Place SSID and (plain text) pass comma separated into 'wifi.txt'
-            # REPL example:
-            #  with open("wifi.txt", "w") as file:
-            #     file.write("SSID_NAME,PassW0rd#")
-            details = open("wifi.txt").read().split(",", 1)
-            print("Connecting to: ", details)
-            sta_if.connect(details[0], details[1])
-        except OSError as e:
-            print(e)
+        # The username and password can be persisted to the ESP32 flash
+        # Place SSID and (plain text) pass comma separated into 'wifi.txt'
+        # REPL example:
+        #  with open("config/wifi", "w") as file:
+        #     file.write("SSID_NAME,PassW0rd#")
+        details = get_config_value(CONFIG_WIFI)
+        if not details:
             fullScreen.display("No WiFi Details!")
             return
+        try:
+            details = details.split(",", 1)
+            print("Connecting to: ", details)
+            sta_if.connect(details[0], details[1])
         except:
             fullScreen.display("Invalid WiFi Details!")
             return
@@ -488,17 +528,11 @@ def _new_tally_cam():
 
 def setup_tally_camera():
     try:
-        # The username and password can be persisted to the ESP32 flash
-        # Place SSID and (plain text) pass comma separated into 'wifi.txt'
-        # REPL example:
-        #  with open("wifi.txt", "w") as file:
-        #     file.write("SSID_NAME,PassW0rd#")
-        details = open("tally_cam.txt", "r").read()
-        print("Read tally cam: ", details)
+        cam_number = get_config_value(CONFIG_CAMERA, int)
+        print("Read tally cam: ", cam_number)
 
-        if not details:
+        if not cam_number:
             return _new_tally_cam()
-        cam_number = int(details)
 
         if cam_number < 1 or cam_number > MAX_CAMERAS:
             raise ValueError("Cam number out of range")
@@ -524,12 +558,7 @@ def set_tally_camera(num: int):
         return
 
     try:
-        # The username and password can be persisted to the ESP32 flash
-        # Place SSID and (plain text) pass comma separated into 'wifi.txt'
-        # REPL example:
-        #  with open("wifi.txt", "w") as file:
-        #     file.write("SSID_NAME,PassW0rd#")
-        open("tally_cam.txt", "w").write(str(num))
+        set_config_value(CONFIG_CAMERA, num)
         global CAMERA_NUMBER
         CAMERA_NUMBER = num
     except OSError as e:
@@ -724,7 +753,7 @@ def main():
                     CAM_LIVE = int(message["CAM_LIVE"])
                     print(f"LIVE CAM: {CAM_LIVE}")
                     changed = True
-                if "CAM_PREV" in message:
+                if "CAM_PREV" in message and isinstance(message["CAM_PREV"], int):
                     CAM_PREV = int(message["CAM_PREV"])
                     print(f"PREV CAM: {CAM_PREV}")
                     changed = True
@@ -753,6 +782,13 @@ def main():
                     fullScreen.display(None)
                 if "PING" in message:
                     next_ping_time = time.ticks_ms() + PING_PERIOD_MS
+                if "BACKLIGHT_PCT" in message and isinstance(
+                    message["BACKLIGHT_PCT"], int
+                ):
+                    bl_pct = message["BACKLIGHT_PCT"]
+                    print(f"Setting backlight percent: {bl_pct}")
+                    display.set_backlight(bl_pct)
+                    set_config_value(CONFIG_BACKLIGHT, bl_pct)
 
             else:
                 setup_tally_camera()
