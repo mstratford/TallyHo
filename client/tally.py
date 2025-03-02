@@ -25,6 +25,10 @@ CAMERA_NUMBER: int = -1
 CAM_LIVE: int = 0
 CAM_PREV: int = 0
 
+# Calculated true width and height of display after init
+WIDTH: int = 0
+HEIGHT: int = 0
+
 LED_COLOR_RED = [255, 0, 0]
 LED_COLOR_GREEN = [0, 255, 0]
 LED_COLOR_BLUE = [0, 0, 255]
@@ -117,7 +121,7 @@ elif MODEL == "ESP32-C6-LCD-1.47":
     _NEOPIXEL = 8
     _NEOPIXEL_BYTE_ORDER = (1, 0, 2)  # Swap R and G
 
-    INDICATOR_STYLE = INDICATOR_STYLE_ARC  # INDICATOR_STYLE_BOTTOM
+    INDICATOR_STYLE = INDICATOR_STYLE_LEFT
 else:
     raise Exception(f"Unknown board model defined: {MODEL}")
 
@@ -204,11 +208,23 @@ class Indicator:
     def __init__(self, screen, style=INDICATOR_STYLE):
         self.screen = screen
         self.style = style
-        function = {INDICATOR_STYLE_ARC: self.init_arc}
+        function = {
+            INDICATOR_STYLE_ARC: self.init_arc,
+            INDICATOR_STYLE_LEFT: self.init_bar,
+            INDICATOR_STYLE_RIGHT: self.init_bar,
+            INDICATOR_STYLE_TOP: self.init_bar,
+            INDICATOR_STYLE_BOTTOM: self.init_bar,
+        }
         function[style]()
 
     def set_state(self, state=COLOR_STDBY):
-        function = {INDICATOR_STYLE_ARC: self._set_state_arc}
+        function = {
+            INDICATOR_STYLE_ARC: self._set_state_arc,
+            INDICATOR_STYLE_LEFT: self._set_state_bar,
+            INDICATOR_STYLE_RIGHT: self._set_state_bar,
+            INDICATOR_STYLE_TOP: self._set_state_bar,
+            INDICATOR_STYLE_BOTTOM: self._set_state_bar,
+        }
         return function[self.style](state)
 
     def init_arc(self):
@@ -239,6 +255,40 @@ class Indicator:
 
         self.arc = arc
 
+    def init_bar(self):
+        # Style will be a edge of the screen to put it.
+        style = lv.style_t()
+        style.init()
+
+        style.set_bg_color(lv.color_hex(COLOR_STDBY))
+        style.set_radius(0)
+        style.set_border_width(0)
+
+        # Create an object with the new style
+        obj = lv.obj(self.screen)
+        obj.add_style(style, 0)
+
+        if self.style in [INDICATOR_STYLE_LEFT, INDICATOR_STYLE_RIGHT]:
+            width = int(WIDTH * 0.3)
+            height = HEIGHT
+        else:
+            width = WIDTH
+            height = int(HEIGHT * 0.25)
+        x = 0
+        y = 0
+        if self.style == INDICATOR_STYLE_RIGHT:
+            x = WIDTH - width
+        if self.style == INDICATOR_STYLE_BOTTOM:
+            y = HEIGHT - height
+        print(f"Init bar at size {width}x{height} at pos: {x}:{y}")
+        style.set_x(x)
+        style.set_y(y)
+        style.set_width(width)
+        style.set_height(height)
+
+        self.style_bar = style
+        self.bar = obj
+
     def _set_state_arc(self, state):
         # Set the arc color to whatever color you like, if it's preview, carve out the arc to 80%.
         self.style_arc_live.set_arc_color(lv.color_hex(state))
@@ -249,6 +299,11 @@ class Indicator:
         self.arc.remove_style(self.style_arc_live, lv.PART.INDICATOR)
         self.arc.add_style(self.style_arc_live, lv.PART.INDICATOR)
         self.arc.set_value(arc_value)
+
+    def _set_state_bar(self, state):
+        self.style_bar.set_bg_color(lv.color_hex(state))
+        self.bar.remove_style(self.style_bar, 0)
+        self.bar.add_style(self.style_bar, 0)
 
 
 ###
@@ -335,6 +390,11 @@ def setup_display():
     display.set_backlight(100)
 
     display.set_rotation(_LCD_ROTATION)
+
+    global WIDTH
+    global HEIGHT
+    WIDTH = display.get_physical_horizontal_resolution()
+    HEIGHT = display.get_physical_vertical_resolution()
 
 
 import network
