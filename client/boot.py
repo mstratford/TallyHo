@@ -65,13 +65,11 @@ def try_boot():
             print(
                 "Failure to start several times, exiting to REPL for reprogramming / debug!\n\n"
             )
-            global LAUNCH_REPL
-            LAUNCH_REPL = True
             file.write(
                 "-2"
             )  # Reset so that it will try again on next boot (maybe after updating the tally file.)
             file.close()
-            return
+            return  # Let main runtime continue to REPL (since we didn't import tally)
 
         print("Trying again.")
 
