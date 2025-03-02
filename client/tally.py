@@ -682,7 +682,6 @@ def main():
                 print("Ignoring command for other MAC addr")
                 continue
             if CAMERA_NUMBER > 0:
-                label.set_text(str(CAMERA_NUMBER))
                 changed = False
                 if "CAM_LIVE" in message and isinstance(message["CAM_LIVE"], int):
                     CAM_LIVE = int(message["CAM_LIVE"])
@@ -705,6 +704,7 @@ def main():
                         indicator.set_state(COLOR_STDBY)
                         set_neopixel_rgb(LED_COLOR_OFF)
                         print("CAM STANDBY")
+                    label.set_text(str(CAMERA_NUMBER))
                 if "IDENTIFY" in message:
                     for i in range(4):
                         fullScreen.display(
